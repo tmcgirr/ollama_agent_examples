@@ -9,14 +9,13 @@ This repository showcases two primary examples of using [Ollama]([https://github
 1. [Single Agent](#single-agent)
    - [Key Features](#key-features)
    - [Design](#design)
-2. [Description](#description)
-3. [Multi-Agent System Example](#multi-agent-system-example)
+2. [Multi-Agent System Example](#multi-agent-system-example)
    - [Overview](#overview)
    - [How It Works](#how-it-works)
    - [Conversation History](#conversation-history)
-4. [Usage](#usage)
-5. [User & History Management](#user--history-management)
-6. [Cleaning Script and Training Data Generation](#cleaning-script-and-training-data-generation)
+3. [Usage](#usage)
+4. [User & History Management](#user--history-management)
+5. [Cleaning Script and Training Data Generation](#cleaning-script-and-training-data-generation)
 
 ---
 
