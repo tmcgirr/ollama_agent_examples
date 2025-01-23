@@ -7,9 +7,10 @@ from json.decoder import JSONDecodeError
 import json
 
 # Ollama (https://www.llama.com/docs/model-cards-and-prompt-formats/llama3_2/)
-# 3.2 model -> "support custom functions defined in either the system prompt or user prompt
-MODEL = 'llama3.2:1b'
-# MODEL = 'llama3.2:3b'
+# 3.2 model -> "supports function calling, but llama3.2:1b requires a tool call description added to the system prompt
+
+# MODEL = 'llama3.2:1b'
+MODEL = 'llama3.2:3b'
 MAX_TOOL_RETRIES = 2 
 
 # Data Schema (Expected output from tool) (Add explicit tool names for strict validation)

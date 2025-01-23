@@ -13,7 +13,8 @@ import logging
 # Constants and Configuration
 ########################################################
 # Ollama (https://www.llama.com/docs/model-cards-and-prompt-formats/llama3_2/)
-# 3.2 model -> "support custom functions defined in either the system prompt or user prompt
+# 3.2 model -> "supports function calling, but llama3.2:1b requires a tool call description added to the system prompt
+
 # MODEL = 'llama3.2:1b'
 MODEL = 'llama3.2:3b'
 MAX_TOOL_RETRIES = 2
@@ -37,6 +38,7 @@ class AgentDelegation(BaseModel):
     query: str
     reason: str
     
+    # check if agent name is valid (AGENT_NAMES)
     @validator('agent_name')
     def validate_agent_name(cls, v):
         if v not in AGENT_NAMES:
@@ -78,13 +80,15 @@ class OperatorAgent:
                     }
                 }
             },
-           
         ]
         
         # Validation Schema Map (Pydantic Model for Each Tool)
         self.validation_schema_map = {
             'delegate_to_agent': AgentDelegation,
         }
+
+        # Add output schema property
+        self.output_schema = AgentDelegationResponse
         
         # System Prompt (Dynaminc Tool Descriptions)
         self.system_prompt = f'''
@@ -181,7 +185,7 @@ class NumberOperation(BaseModel):
 # Addition Agent
 ########################################################
 class AdditionAgent:
-    aliases = ['add', 'plus', '+']
+    aliases = ['addition', 'add', 'plus', '+']
     
     def __init__(self, model: str = MODEL):
         self.model = model
@@ -279,7 +283,7 @@ class AdditionAgent:
 # Subtraction Agent
 ########################################################
 class SubtractionAgent:
-    aliases = ['subtract', 'minus', '-']
+    aliases = ['subtraction', 'subtract', 'minus', '-']
     
     def __init__(self, model: str = MODEL):
         self.model = model
@@ -376,7 +380,7 @@ class SubtractionAgent:
 # Multiplication Agent
 ########################################################
 class MultiplicationAgent:
-    aliases = ['multiply', 'times', '*', 'x']
+    aliases = ['multiplication', 'multiply', 'times', '*', 'x']
     
     def __init__(self, model: str = MODEL):
         self.model = model
@@ -473,7 +477,7 @@ class MultiplicationAgent:
 # Division Agent
 ########################################################
 class DivisionAgent:
-    aliases = ['divide', '/']
+    aliases = ['division', 'divide', '/']
     
     def __init__(self, model: str = MODEL):
         self.model = model
@@ -631,7 +635,8 @@ class ModelRetryHandler:
     async def _attempt_tool_retry(
         self,
         messages: List[dict],
-        function_to_call: Any
+        function_to_call: Any,
+        output_schema: Type[BaseModel] = None
     ) -> Optional[BaseModel]:
         """Attempts to retry the entire tool call"""
         for attempt in range(self.max_tool_retries):
@@ -669,10 +674,14 @@ class ModelRetryHandler:
         self,
         messages: List[dict],
         tool_call: Any,
-        function_to_call: Any
+        function_to_call: Any,
+        output_schema: Type[BaseModel] = None
     ) -> tuple[BaseModel, List[dict]]:
         """Main method to execute a tool call with automatic retries"""
         try:
+            # Use provided output_schema if available, otherwise fall back to default
+            schema_to_use = output_schema or self.output_schema
+            
             # Parse arguments if they're a string
             args = tool_call.function.arguments
             if isinstance(args, str):
@@ -682,7 +691,7 @@ class ModelRetryHandler:
             raw_output = await function_to_call(**args)
             
             try:
-                validated_output = self.output_schema.model_validate(raw_output)
+                validated_output = schema_to_use.model_validate(raw_output)
                 
                 # Properly format the messages
                 messages.extend([
@@ -703,8 +712,8 @@ class ModelRetryHandler:
             except ValidationError:
                 print('Validation error, attempting to reformat tool output')
                 
-                # Try format retry
-                if validated_output := await self._attempt_format_retry(raw_output, self.output_schema):
+                # Try format retry with the correct schema
+                if validated_output := await self._attempt_format_retry(raw_output, schema_to_use):
                     messages.extend([
                         {
                             'role': 'assistant',
@@ -719,9 +728,9 @@ class ModelRetryHandler:
                     ])
                     return validated_output, messages
                 
-                # If format retry fails, try tool retry
+                # If format retry fails, try tool retry with the correct schema
                 print('All formatting attempts failed, trying full tool retry')
-                if validated_output := await self._attempt_tool_retry(messages, function_to_call):
+                if validated_output := await self._attempt_tool_retry(messages, function_to_call, schema_to_use):
                     messages.extend([
                         {
                             'role': 'assistant',
@@ -895,7 +904,7 @@ async def run_agent_with_tools(
         # Create fresh message history if agent_memory is False
         agent_messages = [
             {'role': 'system', 'content': agent_instance.system_prompt},
-            {'role': 'user', 'content': messages[-1]['content']}  # Only take the latest user message
+            {'role': 'user', 'content': messages[-1]['content']} 
         ]
     
     # Get response from model
@@ -911,7 +920,6 @@ async def run_agent_with_tools(
 
     if response.message.tool_calls:
         for tool_call in response.message.tool_calls:
-            # Log the tool usage with agent name
             print(f"[{agent_name}][TOOL] -> Using [{tool_call.function.name}] with args: {tool_call.function.arguments}\n")
             
             if tool_call.function.name == 'delegate_to_agent':
@@ -957,7 +965,8 @@ async def run_agent_with_tools(
                     validated_output, updated_messages = await retry_handler.execute_tool_with_retry(
                         messages=agent_messages,
                         tool_call=tool_call,
-                        function_to_call=function_to_call
+                        function_to_call=function_to_call,
+                        output_schema=selected_agent.validation_schema_map[tool_call.function.name]
                     )
 
                     # Return result with agent name
@@ -981,10 +990,13 @@ async def run_agent_with_tools(
             else:
                 # Handle direct tool calls (non-delegation)
                 function_to_call = agent_instance.tools_map[tool_call.function.name]
+                # Get the correct output schema from the validation_schema_map
+                tool_output_schema = agent_instance.validation_schema_map[tool_call.function.name]
                 validated_output, updated_messages = await retry_handler.execute_tool_with_retry(
                     messages=messages,
                     tool_call=tool_call,
-                    function_to_call=function_to_call
+                    function_to_call=function_to_call,
+                    output_schema=tool_output_schema
                 )
                 
                 if validated_output.result:
@@ -1050,12 +1062,20 @@ class SequentialFlow:
                 {'role': 'user', 'content': query}
             ]
             
+            output_schema = (
+                agent.get_output_schema() 
+                if hasattr(agent, 'get_output_schema') 
+                else agent.validation_schema_map.get(
+                    agent.available_tools[0]['function']['name']
+                )
+            )
+            
             response = await run_agent_with_tools(
                 client=agent.client,
                 model=agent.model,
                 messages=messages,
                 tools=agent.available_tools,
-                output_schema=NumberOperation,
+                output_schema=output_schema,
                 agent_instance=agent,
                 available_agents=available_agents
             )
@@ -1179,6 +1199,7 @@ async def main():
                 except Exception as e:
                     print(f"Error executing flow: {str(e)}")
                 continue
+            
                 
             # Check for direct agent command
             elif user_input.startswith('@'):
@@ -1195,12 +1216,20 @@ async def main():
                             {'role': 'user', 'content': query}
                         ]
                         
+                        output_schema = (
+                            selected_agent.get_output_schema() 
+                            if hasattr(selected_agent, 'get_output_schema') 
+                            else selected_agent.validation_schema_map.get(
+                                selected_agent.available_tools[0]['function']['name']
+                            )
+                        )
+                        
                         response = await run_agent_with_tools(
                             client=selected_agent.client,
                             model=selected_agent.model,
                             messages=messages,
                             tools=selected_agent.available_tools,
-                            output_schema=NumberOperation,
+                            output_schema=output_schema,
                             agent_instance=selected_agent,
                             stream=True,
                             agent_memory=False,
@@ -1229,7 +1258,7 @@ async def main():
                     model=operator_agent.model,
                     messages=messages,
                     tools=operator_agent.available_tools,
-                    output_schema=NumberOperation,
+                    output_schema=operator_agent.output_schema,
                     agent_instance=operator_agent,
                     stream=True,
                     agent_memory=True,
@@ -1243,11 +1272,11 @@ async def main():
             # Add the response to conversation history
             conversation_history.append({'role': 'assistant', 'content': cleaned_response})
         
-            print("\n----------------------------------------")
-            print("\nConversation History:")
-            for msg in conversation_history[-truncate_history:]:
-                print(f"  {msg['role']}: {msg['content']}")
-            print("----------------------------------------")
+            # print("\n----------------------------------------")
+            # print("\nConversation History:")
+            # for msg in conversation_history[-truncate_history:]:
+            #     print(f"  {msg['role']}: {msg['content']}")
+            # print("----------------------------------------")
                 
         except ValidationError as e:
             print(f"\nValidation Error: {str(e)}")
