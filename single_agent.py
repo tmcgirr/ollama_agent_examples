@@ -7,7 +7,7 @@ from json.decoder import JSONDecodeError
 import json
 
 # Ollama (https://www.llama.com/docs/model-cards-and-prompt-formats/llama3_2/)
-# 3.2 model -> "supports function calling, but llama3.2:1b requires a tool call description added to the system prompt
+# 3.2 model -> "3.2:3b+ supports function calling, but llama3.2:1b requires a tool call description added to the system prompt
 
 # MODEL = 'llama3.2:1b'
 MODEL = 'llama3.2:3b'
@@ -105,7 +105,7 @@ class MathAgent:
             'divide_two_numbers': NumberOperation
         }
         
-        # System Prompt (Dynaminc Tool Descriptions)
+        # System Prompt (Dynamic Tool Descriptions)
         self.system_prompt = f'''
             <system>
                 You are an expert in mathematical operations that uses tools for calculations.
@@ -171,28 +171,22 @@ class MathAgent:
         Returns:
             NumberOperation: A validated NumberOperation object
         """
-        # Return an invalid structure to test the retry mechanism
-        # return {
-        #     'result': "not a number",  # This should fail validation since result should be int
-        #     'operation': 'add_two_numbers',
-        #     'numbers_used': [1, 2]
-        # }
         return NumberOperation(result=int(a) + int(b), operation="add_two_numbers", numbers_used=[int(a), int(b)])
     
     # Tool Function 
     async def subtract_two_numbers(self, a: Any, b: Any) -> NumberOperation:
-            """
-            Subtract two numbers, returning a NumberOperation.
+        """
+        Subtract two numbers, returning a NumberOperation.
+        
+        Args:
+            a (Any): The first number
+            b (Any): The second number
             
-            Args:
-                a (Any): The first number
-                b (Any): The second number
-                
-            Returns:
-                NumberOperation: A validated NumberOperation object
-            """
-            return NumberOperation(result=int(a) - int(b), operation="subtract_two_numbers", numbers_used=[int(a), int(b)])
-    
+        Returns:
+            NumberOperation: A validated NumberOperation object
+        """
+        return NumberOperation(result=int(a) - int(b), operation="subtract_two_numbers", numbers_used=[int(a), int(b)])
+
     async def multiply_two_numbers(self, a: Any, b: Any) -> NumberOperation:
         """
         Multiply two numbers, returning a NumberOperation.
@@ -354,7 +348,10 @@ async def main():
     
     # Print Welcome Message
     print("\n🦙 Ollama Math Agent! (type 'exit' to quit)")
+    print("Try: 'what is 5 plus 3?'")
     print("----------------------------------------")
+
+    
     
     while True:
         try:
@@ -385,7 +382,7 @@ async def main():
                 model=agent.model,
                 messages=messages,
                 tools=agent.available_tools,
-                output_schema=NumberOperation,
+                output_schema=NumberOperation, # NumberOperation, (Adjust for your data schema)
                 agent_instance=agent,
                 stream=True 
             )

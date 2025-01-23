@@ -13,7 +13,7 @@ import logging
 # Constants and Configuration
 ########################################################
 # Ollama (https://www.llama.com/docs/model-cards-and-prompt-formats/llama3_2/)
-# 3.2 model -> "supports function calling, but llama3.2:1b requires a tool call description added to the system prompt
+# 3.2 model -> "llama3.2:3b+ supports function calling, but llama3.2:1b requires a tool call description added to the system prompt
 
 # MODEL = 'llama3.2:1b'
 MODEL = 'llama3.2:3b'
@@ -90,7 +90,7 @@ class OperatorAgent:
         # Add output schema property
         self.output_schema = AgentDelegationResponse
         
-        # System Prompt (Dynaminc Tool Descriptions)
+        # System Prompt (Dynamic Tool Descriptions)
         self.system_prompt = f'''
             <system>
                 You are an expert in delegating queries to the appropriate agent.
@@ -221,7 +221,7 @@ class AdditionAgent:
             'add_two_numbers': NumberOperation,
         }
         
-        # System Prompt (Dynaminc Tool Descriptions)
+        # System Prompt (Dynamic Tool Descriptions)
         self.system_prompt = f'''
             <system>
                 You are an expert in addition that uses tools for calculations.
@@ -320,7 +320,7 @@ class SubtractionAgent:
             'subtract_two_numbers': NumberOperation,
         }
         
-        # System Prompt (Dynaminc Tool Descriptions)
+        # System Prompt (Dynamic Tool Descriptions)
         self.system_prompt = f'''
             <system>
                 You are an expert in subtraction that uses tools for calculations.
@@ -360,18 +360,18 @@ class SubtractionAgent:
   
     # Tool Function 
     async def subtract_two_numbers(self, a: Any, b: Any) -> NumberOperation:
-            """
-            Subtract two numbers, returning a NumberOperation.
+        """
+        Subtract two numbers, returning a NumberOperation.
+        
+        Args:
+            a (Any): The first number
+            b (Any): The second number
             
-            Args:
-                a (Any): The first number
-                b (Any): The second number
-                
-            Returns:
-                NumberOperation: A validated NumberOperation object
-            """
-            return NumberOperation(result=float(a) - float(b), operation="subtract_two_numbers", numbers_used=[float(a), float(b)])
-    
+        Returns:
+            NumberOperation: A validated NumberOperation object
+        """
+        return NumberOperation(result=float(a) - float(b), operation="subtract_two_numbers", numbers_used=[float(a), float(b)])
+
     async def clear_messages(self):
         """Clear the message history for this agent"""
         self.messages = []
@@ -417,7 +417,7 @@ class MultiplicationAgent:
             'multiply_two_numbers': NumberOperation,
         }
         
-        # System Prompt (Dynaminc Tool Descriptions)
+        # System Prompt (Dynamic Tool Descriptions)
         self.system_prompt = f'''
             <system>
                 You are an expert in multiplication that uses tools for calculations.
@@ -513,7 +513,7 @@ class DivisionAgent:
             'divide_two_numbers': NumberOperation
         }
         
-        # System Prompt (Dynaminc Tool Descriptions)
+        # System Prompt (Dynamic Tool Descriptions)
         self.system_prompt = f'''
             <system>
                 You are an expert in division that uses tools for calculations.
